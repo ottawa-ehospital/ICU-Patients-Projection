@@ -10,3 +10,6 @@ Within the ehospital folder, the backend folder has two subfolders mlmodel which
 
 **Frontend codebase in ehospital/src-**
 The HomePage.js React component allows ehospital users to search for a patient's data by entering their Patient ID. It fetches data from the app.py backend API, handles errors, and displays detailed patient information (e.g., age, gender, diagnosis) and ICU predictions (e.g., admission location, length of stay). ![image](https://github.com/user-attachments/assets/09ee4867-8942-4e77-be11-ccd36a6cd71e)
+
+
+NOTE - The trained ML models are very large files so they have been uploaded as a zip folder.
