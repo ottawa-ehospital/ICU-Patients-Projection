@@ -5,15 +5,14 @@ import re
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 import category_encoders as ce
 from joblib import load
-from sklearn.impute import SimpleImputer
 
 
 def preprocess_and_predict(test_data_path, model_path):
     # Load test data
     test_data = pd.read_csv(test_data_path)
     
-    # Save 'patient_id' before dropping columns
-    patient_ids = test_data['patient_id']
+    # Save the patient_id to use as keys in the output dictionary
+    patient_ids = test_data['patient_id'].copy()
     
     # Drop irrelevant columns
     columns_to_drop = [
@@ -72,82 +71,75 @@ def preprocess_and_predict(test_data_path, model_path):
     test_data['ICD9_CATEGORY'] = test_data['ICD9_CODE'].apply(transform_category)
     test_data = test_data.drop(columns=['ICD9_CODE'], axis='columns')
     
+    DF_1 = test_data.copy()
+
+    # Defining the bin edges
+    bins = [0, 1, 5, 10, 20, 50, np.inf]
+    labels = ['0-1', '1-5', '5-10', '10-20', '20-50', '50+']
+    DF_1['LOS_Binned'] = pd.cut(DF_1['LOS'], bins=bins, labels=labels)
+
+    # Save the original target for comparison
+    original_LOS = DF_1['LOS_Binned'].copy()
+    
+    columns_to_drop = ['LOS']
+    DF_1 = DF_1.drop(columns=columns_to_drop)
+
     # Standardize features
     scaler = StandardScaler()
-    test_data[['LOS', 'SEQ_NUM', 'LOS_in_Hospital']] = scaler.fit_transform(
-        test_data[['LOS', 'SEQ_NUM', 'LOS_in_Hospital']]
+    DF_1[['SEQ_NUM', 'LOS_in_Hospital']] = scaler.fit_transform(
+        DF_1[['SEQ_NUM', 'LOS_in_Hospital']]
     )
     
-    # Drop ADMISSION_TYPE and Firstcareunit
-    test_data = test_data.drop(columns=['ADMISSION_TYPE','FIRST_CAREUNIT'], axis='columns')
+    # Drop ADMISSION_TYPE
+    DF_1 = DF_1.drop(columns=['ADMISSION_TYPE'], axis='columns')
     
-    DF_2 = test_data.copy()
-
-    # Function to categorize the discharge location
-    def categorize_discharge(location):
-        if location in ['HOME', 'HOME HEALTH CARE']:
-            return 'HOME'
-        elif location == 'REHAB/DISTINCT PART HOSP':
-            return 'REHAB'
-        elif location == 'LONG TERM CARE HOSPITAL':
-            return 'LONG TERM CARE FACILITY'
-        else:
-            return 'OTHERS'
-
-    # Applying the mapping to the DISCHARGE_LOCATION
-    DF_2['DISCHARGE_LOCATION'] = DF_2['DISCHARGE_LOCATION'].apply(categorize_discharge)
-   
-    # Save the original target for comparison
-    original_discharge_location = DF_2['DISCHARGE_LOCATION'].copy()
-    
-    # Reducing distinct values for ETHNICITY as few values are dominant
-    DF_2.loc[DF_2['ETHNICITY']!='WHITE','ETHNICITY']='NON-WHITE'
+    DF_1.loc[DF_1['ETHNICITY'] != 'WHITE', 'ETHNICITY'] = 'NON-WHITE'
+    DF_1.loc[DF_1['ADMISSION_LOCATION'] != 'EMERGENCY ROOM ADMIT', 'ADMISSION_LOCATION'] = 'NO EMERGENCY ROOM ADMIT'
 
     # One-hot encoding
-    DF_2 = pd.get_dummies(
-        test_data,
+    DF_1 = pd.get_dummies(
+        DF_1,
         columns=[
-            'INSURANCE', 'GENDER','LAST_CAREUNIT', 'ICD9_CATEGORY', 'ETHNICITY', 'ADMISSION_LOCATION'
+            'DISCHARGE_LOCATION', 'INSURANCE', 'GENDER', 'FIRST_CAREUNIT',
+            'LAST_CAREUNIT', 'ICD9_CATEGORY', 'ETHNICITY', 'ADMISSION_LOCATION'
         ],
         dtype=int
     )
     
     # Base-N encoding for DIAGNOSIS
     encoder = ce.BaseNEncoder(cols=['DIAGNOSIS'], base=4)
-    diagnosis_encoded = encoder.fit_transform(DF_2['DIAGNOSIS'])
-    DF_2 = pd.concat([DF_2.drop(columns=['DIAGNOSIS']), diagnosis_encoded], axis=1)
+    diagnosis_encoded = encoder.fit_transform(DF_1['DIAGNOSIS'])
+    DF_1 = pd.concat([DF_1.drop(columns=['DIAGNOSIS']), diagnosis_encoded], axis=1)
     
     label_encoder = LabelEncoder()
-    DF_2['DISCHARGE_LOCATION'] = label_encoder.fit_transform(DF_2['DISCHARGE_LOCATION'])
-
-    # Impute missing values in DF_2
-    imputer = SimpleImputer(strategy='mean')
-    DF_2 = pd.DataFrame(imputer.fit_transform(DF_2), columns=DF_2.columns)
-
+    DF_1['LOS_Binned'] = label_encoder.fit_transform(DF_1['LOS_Binned'])
 
     # Align test data columns with model's training data
     model = load(model_path)
     model_columns = model.feature_names_in_
-    DF_2 = DF_2.reindex(columns=model_columns, fill_value=0)
+    DF_1 = DF_1.reindex(columns=model_columns, fill_value=0)
 
     # Make predictions
-    predictions = model.predict(DF_2)
-    predicted_categories = label_encoder.inverse_transform(predictions)
+    predictions = model.predict(DF_1)
     
-    # Combine predictions with original target for comparison
-    comparison = pd.DataFrame({
-        'patient_id': patient_ids,
-        'Original_DISCHARGE_LOCATION': original_discharge_location,
-        'Predicted': predicted_categories
-    })
+    # Use predefined labels for inverse transformation
+    labels = ['0-1', '1-5', '5-10', '10-20', '20-50', '50+']
+    predictions = np.clip(predictions, 0, len(labels) - 1)  
     
-    # Convert comparison to dictionary with patient_id as the key
-    result_dict = comparison.set_index('patient_id').to_dict(orient='index')
+    # Convert predictions back to the original bins
+    predicted_labels = [labels[i] for i in predictions]    
     
-    return json.dumps(result_dict, indent=4)
+    # Prepare the dictionary output
+    output_dict = {}
+    for idx, patient_id in enumerate(patient_ids):
+        output_dict[patient_id] = {
+            'Original_LOS': original_LOS.iloc[idx],
+            'Predicted': predicted_labels[idx]
+        }
+    return json.dumps(output_dict, indent=4)
 
 if __name__ == "__main__":
-    test_data_path = "C:\\ICUPred\\E-self-frontend\\ehospital\\backend\\patient.csv" 
-    model_path = "C:\\ICUPred\\E-self-frontend\\ehospital\\backend\\mlmodel\\KNN_classifier_discharge.pkl"  
+    test_data_path = "C:\\ottawa-ehospital\\ICU-Patients-Projection\\patient.csv" 
+    model_path = "C:\\ottawa-ehospital\\ICU-Patients-Projection\\mlmodel\\KNN_classifier_LOS.pkl"  
     result = preprocess_and_predict(test_data_path, model_path)
     print(result)

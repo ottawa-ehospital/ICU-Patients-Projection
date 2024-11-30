@@ -1,15 +1,70 @@
-# ICU-Patients-Projection
+# Getting Started with Create React App
 
-We have implemented the Machine learning model which predicts the Patients ICU admission prediction, Length of stay and Discharge prediction from ICU and visualised the predictions in the React web application.
-This standalone ICU prediction system is designed with flexibility, making it easy to integrate as a component within the e-hospital website. By using the React framework for the frontend and a Flask API with Python for the backend, it ensures seamless data flow and interaction between the system and infrastructure. The system’s modular design makes the future integration process simpler, enabling the e-hospital website to access and display critical patient predictions with minimal setup. This makes it an ideal solution for enhancing the e-hospital website’s functionality without disrupting existing services.
+This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
-**Backend api in ehospital/backend**
-Within the ehospital folder, the backend folder has two subfolders mlmodel which stores the trained models and prediction folder has the three scripts which take the raw data of patients based on patient ID and apply preprocessing and the saved model to give the final predictions.
-"app.py" - This Flask API fetches patient details and predictions by running external Python scripts for admission, discharge, and length of stay (LOS), combining their outputs with data from a JSON file. It retrieves the relevant patient data based on a patient_id provided as a query parameter in the /get_patient_data endpoint. The API integrates script outputs and static info, returning a structured JSON response with original and predicted values.
+## Available Scripts
 
+In the project directory, you can run:
 
-**Frontend codebase in ehospital/src-**
-The HomePage.js React component allows ehospital users to search for a patient's data by entering their Patient ID. It fetches data from the app.py backend API, handles errors, and displays detailed patient information (e.g., age, gender, diagnosis) and ICU predictions (e.g., admission location, length of stay). ![image](https://github.com/user-attachments/assets/09ee4867-8942-4e77-be11-ccd36a6cd71e)
+### `npm start`
 
+Runs the app in the development mode.\
+Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
-NOTE - The trained ML models are very large files so they have been uploaded as a zip folder.
+The page will reload when you make changes.\
+You may also see any lint errors in the console.
+
+### `npm test`
+
+Launches the test runner in the interactive watch mode.\
+See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+
+### `npm run build`
+
+Builds the app for production to the `build` folder.\
+It correctly bundles React in production mode and optimizes the build for the best performance.
+
+The build is minified and the filenames include the hashes.\
+Your app is ready to be deployed!
+
+See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+
+### `npm run eject`
+
+**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+
+If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+
+Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+
+You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+
+## Learn More
+
+You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+
+To learn React, check out the [React documentation](https://reactjs.org/).
+
+### Code Splitting
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+
+### Analyzing the Bundle Size
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+
+### Making a Progressive Web App
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+
+### Advanced Configuration
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+
+### Deployment
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+
+### `npm run build` fails to minify
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)

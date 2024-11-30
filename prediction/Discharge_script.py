@@ -5,16 +5,15 @@ import re
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 import category_encoders as ce
 from joblib import load
+from sklearn.impute import SimpleImputer
+
 
 def preprocess_and_predict(test_data_path, model_path):
     # Load test data
     test_data = pd.read_csv(test_data_path)
     
-    # Save the patient_id 
+    # Save 'patient_id' before dropping columns
     patient_ids = test_data['patient_id']
-    
-    # Save the original target for comparison
-    original_admission_location = test_data['ADMISSION_LOCATION'].copy()
     
     # Drop irrelevant columns
     columns_to_drop = [
@@ -79,47 +78,76 @@ def preprocess_and_predict(test_data_path, model_path):
         test_data[['LOS', 'SEQ_NUM', 'LOS_in_Hospital']]
     )
     
-    # Drop ADMISSION_TYPE
-    test_data = test_data.drop(columns=['ADMISSION_TYPE'], axis='columns')
+    # Drop ADMISSION_TYPE and Firstcareunit
+    test_data = test_data.drop(columns=['ADMISSION_TYPE','FIRST_CAREUNIT'], axis='columns')
     
+    DF_2 = test_data.copy()
+
+    # Function to categorize the discharge location
+    def categorize_discharge(location):
+        if location in ['HOME', 'HOME HEALTH CARE']:
+            return 'HOME'
+        elif location == 'REHAB/DISTINCT PART HOSP':
+            return 'REHAB'
+        elif location == 'LONG TERM CARE HOSPITAL':
+            return 'LONG TERM CARE FACILITY'
+        else:
+            return 'OTHERS'
+
+    # Applying the mapping to the DISCHARGE_LOCATION
+    DF_2['DISCHARGE_LOCATION'] = DF_2['DISCHARGE_LOCATION'].apply(categorize_discharge)
+   
+    # Save the original target for comparison
+    original_discharge_location = DF_2['DISCHARGE_LOCATION'].copy()
+    
+    # Reducing distinct values for ETHNICITY as few values are dominant
+    DF_2.loc[DF_2['ETHNICITY']!='WHITE','ETHNICITY']='NON-WHITE'
+
     # One-hot encoding
-    test_data = pd.get_dummies(
+    DF_2 = pd.get_dummies(
         test_data,
         columns=[
-            'DISCHARGE_LOCATION', 'INSURANCE', 'GENDER', 'FIRST_CAREUNIT',
-            'LAST_CAREUNIT', 'ICD9_CATEGORY', 'ETHNICITY', 'ADMISSION_LOCATION'
+            'INSURANCE', 'GENDER','LAST_CAREUNIT', 'ICD9_CATEGORY', 'ETHNICITY', 'ADMISSION_LOCATION'
         ],
         dtype=int
     )
     
     # Base-N encoding for DIAGNOSIS
     encoder = ce.BaseNEncoder(cols=['DIAGNOSIS'], base=4)
-    diagnosis_encoded = encoder.fit_transform(test_data['DIAGNOSIS'])
-    test_data = pd.concat([test_data.drop(columns=['DIAGNOSIS']), diagnosis_encoded], axis=1)
+    diagnosis_encoded = encoder.fit_transform(DF_2['DIAGNOSIS'])
+    DF_2 = pd.concat([DF_2.drop(columns=['DIAGNOSIS']), diagnosis_encoded], axis=1)
     
+    label_encoder = LabelEncoder()
+    DF_2['DISCHARGE_LOCATION'] = label_encoder.fit_transform(DF_2['DISCHARGE_LOCATION'])
+
+    # Impute missing values in DF_2
+    imputer = SimpleImputer(strategy='mean')
+    DF_2 = pd.DataFrame(imputer.fit_transform(DF_2), columns=DF_2.columns)
+
+
     # Align test data columns with model's training data
     model = load(model_path)
-    model_columns = model.get_booster().feature_names
-    test_data = test_data.reindex(columns=model_columns, fill_value=0)
-    
+    model_columns = model.feature_names_in_
+    DF_2 = DF_2.reindex(columns=model_columns, fill_value=0)
+
     # Make predictions
-    predictions = model.predict(test_data)
+    predictions = model.predict(DF_2)
+    predicted_categories = label_encoder.inverse_transform(predictions)
     
     # Combine predictions with original target for comparison
-    comparison_dict = {
-        patient_id: {
-            "Original_ADMISSION_LOCATION": original_location,
-            "Predicted": "Admitted to ICU" if prediction == 1 else "Not admitted to ICU"
-        }
-        for patient_id, original_location, prediction in zip(
-            patient_ids, original_admission_location, predictions
-        )
-    }
-    return json.dumps(comparison_dict, indent=4)
+    comparison = pd.DataFrame({
+        'patient_id': patient_ids,
+        'Original_DISCHARGE_LOCATION': original_discharge_location,
+        'Predicted': predicted_categories
+    })
+    
+    # Convert comparison to dictionary with patient_id as the key
+    result_dict = comparison.set_index('patient_id').to_dict(orient='index')
+    
+    return json.dumps(result_dict, indent=4)
 
 if __name__ == "__main__":
-    test_data_path = "C:\\ICUPred\\E-self-frontend\\ehospital\\backend\\patient.csv" 
-    model_path = "C:\\ICUPred\\E-self-frontend\\ehospital\\backend\\mlmodel\\xgadmissionmodel3.joblib"  
+    test_data_path = "C:\\ottawa-ehospital\\ICU-Patients-Projection\\patient.csv" 
+    model_path = "C:\\ottawa-ehospital\\ICU-Patients-Projection\\mlmodel\\KNN_classifier_discharge.pkl"  
     result = preprocess_and_predict(test_data_path, model_path)
     print(result)
-
