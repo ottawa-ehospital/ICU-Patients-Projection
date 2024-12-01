@@ -11,7 +11,8 @@ with open('patients_data.json', 'r') as f:
     data_dict = json.load(f)
 
 def run_script(script_name):
-    pt = "C:\\ottawa-ehospital\\ICU-Patients-Projection\\prediction\\" + script_name
+    # pt = "C:\\ICU-Patients-Projection\\prediction\\" + script_name
+    pt = "prediction\\" + script_name
    
     # script_path = os.path.join(SCRIPTS_DIR, script_name)
     result = subprocess.run(['python', pt], capture_output=True, text=True)

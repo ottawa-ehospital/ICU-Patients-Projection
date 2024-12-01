@@ -6,9 +6,12 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 import category_encoders as ce
 from joblib import load
 from sklearn.impute import SimpleImputer
+import zipfile
+import os
+import shutil
 
 
-def preprocess_and_predict(test_data_path, model_path):
+def preprocess_and_predict(test_data_path, zip_file_path, model_file_name):
     # Load test data
     test_data = pd.read_csv(test_data_path)
     
@@ -124,9 +127,15 @@ def preprocess_and_predict(test_data_path, model_path):
     imputer = SimpleImputer(strategy='mean')
     DF_2 = pd.DataFrame(imputer.fit_transform(DF_2), columns=DF_2.columns)
 
+    # Extract the model from the zip file
+    with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+        zip_ref.extractall('temp_model_dir')
+    
+    # Update the model path to include the folder structure
+    extracted_model_path = os.path.join('temp_model_dir', 'mlmodel', model_file_name)
 
     # Align test data columns with model's training data
-    model = load(model_path)
+    model = load(extracted_model_path)
     model_columns = model.feature_names_in_
     DF_2 = DF_2.reindex(columns=model_columns, fill_value=0)
 
@@ -144,10 +153,15 @@ def preprocess_and_predict(test_data_path, model_path):
     # Convert comparison to dictionary with patient_id as the key
     result_dict = comparison.set_index('patient_id').to_dict(orient='index')
     
+    shutil.rmtree('temp_model_dir')
+
     return json.dumps(result_dict, indent=4)
 
 if __name__ == "__main__":
-    test_data_path = "C:\\ottawa-ehospital\\ICU-Patients-Projection\\patient.csv" 
-    model_path = "C:\\ottawa-ehospital\\ICU-Patients-Projection\\mlmodel\\KNN_classifier_discharge.pkl"  
-    result = preprocess_and_predict(test_data_path, model_path)
+    # test_data_path = "C:\\ICU-Patients-Projection\\patient.csv" 
+    # zip_file_path = "C:\\ICU-Patients-Projection\\mlmodel.zip"  
+    test_data_path = "patient.csv" 
+    zip_file_path = "mlmodel.zip" 
+    model_file_name = "KNN_classifier_discharge.pkl"
+    result = preprocess_and_predict(test_data_path, zip_file_path, model_file_name)
     print(result)
