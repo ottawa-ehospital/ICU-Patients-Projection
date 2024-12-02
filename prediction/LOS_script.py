@@ -154,8 +154,8 @@ def preprocess_and_predict(test_data_path, zip_file_path, model_file_name):
 if __name__ == "__main__":
     # test_data_path = "C:\\ICU-Patients-Projection\\patient.csv" 
     # zip_file_path = "C:\\ICU-Patients-Projection\\mlmodel.zip"  
-    test_data_path = "patient.csv" 
-    zip_file_path = "mlmodel.zip" 
+    test_data_path = "../patient.csv" 
+    zip_file_path = "../mlmodel.zip" 
     model_file_name = "KNN_classifier_LOS.pkl"
     result = preprocess_and_predict(test_data_path, zip_file_path, model_file_name)
     print(result)
