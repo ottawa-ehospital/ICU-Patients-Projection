@@ -9,15 +9,13 @@ import zipfile
 import os
 import shutil
 
+
 def preprocess_and_predict(test_data_path, zip_file_path, model_file_name):
     # Load test data
     test_data = pd.read_csv(test_data_path)
     
-    # Save the patient_id 
-    patient_ids = test_data['patient_id']
-    
-    # Save the original target for comparison
-    original_admission_location = test_data['ADMISSION_LOCATION'].copy()
+    # Save the patient_id to use as keys in the output dictionary
+    patient_ids = test_data['patient_id'].copy()
     
     # Drop irrelevant columns
     columns_to_drop = [
@@ -76,18 +74,34 @@ def preprocess_and_predict(test_data_path, zip_file_path, model_file_name):
     test_data['ICD9_CATEGORY'] = test_data['ICD9_CODE'].apply(transform_category)
     test_data = test_data.drop(columns=['ICD9_CODE'], axis='columns')
     
+    DF_1 = test_data.copy()
+
+    # Defining the bin edges
+    bins = [0, 1, 5, 10, 20, 50, np.inf]
+    labels = ['0-1', '1-5', '5-10', '10-20', '20-50', '50+']
+    DF_1['LOS_Binned'] = pd.cut(DF_1['LOS'], bins=bins, labels=labels)
+
+    # Save the original target for comparison
+    original_LOS = DF_1['LOS_Binned'].copy()
+    
+    columns_to_drop = ['LOS']
+    DF_1 = DF_1.drop(columns=columns_to_drop)
+
     # Standardize features
     scaler = StandardScaler()
-    test_data[['LOS', 'SEQ_NUM', 'LOS_in_Hospital']] = scaler.fit_transform(
-        test_data[['LOS', 'SEQ_NUM', 'LOS_in_Hospital']]
+    DF_1[['SEQ_NUM', 'LOS_in_Hospital']] = scaler.fit_transform(
+        DF_1[['SEQ_NUM', 'LOS_in_Hospital']]
     )
     
     # Drop ADMISSION_TYPE
-    test_data = test_data.drop(columns=['ADMISSION_TYPE'], axis='columns')
+    DF_1 = DF_1.drop(columns=['ADMISSION_TYPE'], axis='columns')
     
+    DF_1.loc[DF_1['ETHNICITY'] != 'WHITE', 'ETHNICITY'] = 'NON-WHITE'
+    DF_1.loc[DF_1['ADMISSION_LOCATION'] != 'EMERGENCY ROOM ADMIT', 'ADMISSION_LOCATION'] = 'NO EMERGENCY ROOM ADMIT'
+
     # One-hot encoding
-    test_data = pd.get_dummies(
-        test_data,
+    DF_1 = pd.get_dummies(
+        DF_1,
         columns=[
             'DISCHARGE_LOCATION', 'INSURANCE', 'GENDER', 'FIRST_CAREUNIT',
             'LAST_CAREUNIT', 'ICD9_CATEGORY', 'ETHNICITY', 'ADMISSION_LOCATION'
@@ -97,46 +111,51 @@ def preprocess_and_predict(test_data_path, zip_file_path, model_file_name):
     
     # Base-N encoding for DIAGNOSIS
     encoder = ce.BaseNEncoder(cols=['DIAGNOSIS'], base=4)
-    diagnosis_encoded = encoder.fit_transform(test_data['DIAGNOSIS'])
-    test_data = pd.concat([test_data.drop(columns=['DIAGNOSIS']), diagnosis_encoded], axis=1)
+    diagnosis_encoded = encoder.fit_transform(DF_1['DIAGNOSIS'])
+    DF_1 = pd.concat([DF_1.drop(columns=['DIAGNOSIS']), diagnosis_encoded], axis=1)
     
+    label_encoder = LabelEncoder()
+    DF_1['LOS_Binned'] = label_encoder.fit_transform(DF_1['LOS_Binned'])
+
     # Extract the model from the zip file
     with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
         zip_ref.extractall('temp_model_dir')
     
     # Update the model path to include the folder structure
     extracted_model_path = os.path.join('temp_model_dir', 'mlmodel', model_file_name)
-    
-    # Load the model
-    model = load(extracted_model_path)
-    
+
     # Align test data columns with model's training data
-    model_columns = model.get_booster().feature_names
-    test_data = test_data.reindex(columns=model_columns, fill_value=0)
+    model = load(extracted_model_path)
+    model_columns = model.feature_names_in_
+    DF_1 = DF_1.reindex(columns=model_columns, fill_value=0)
     
     # Make predictions
-    predictions = model.predict(test_data)
+    predictions = model.predict(DF_1)
     
-    # Combine predictions with original target for comparison
-    comparison_dict = {
-        patient_id: {
-            "Original_ADMISSION_LOCATION": original_location,
-            "Predicted": "Admitted to ICU" if prediction == 1 else "Not admitted to ICU"
+    # Use predefined labels for inverse transformation
+    labels = ['0-1', '1-5', '5-10', '10-20', '20-50', '50+']
+    predictions = np.clip(predictions, 0, len(labels) - 1)  
+    
+    # Convert predictions back to the original bins
+    predicted_labels = [labels[i] for i in predictions]    
+    
+    # Prepare the dictionary output
+    output_dict = {}
+    for idx, patient_id in enumerate(patient_ids):
+        output_dict[patient_id] = {
+            'Original_LOS': original_LOS.iloc[idx],
+            'Predicted': predicted_labels[idx]
         }
-        for patient_id, original_location, prediction in zip(
-            patient_ids, original_admission_location, predictions
-        )
-    }
 
     shutil.rmtree('temp_model_dir')
 
-    return json.dumps(comparison_dict, indent=4)
+    return json.dumps(output_dict, indent=4)
 
 if __name__ == "__main__":
     # test_data_path = "C:\\ICU-Patients-Projection\\patient.csv" 
     # zip_file_path = "C:\\ICU-Patients-Projection\\mlmodel.zip"  
-    test_data_path = "../patient.csv" 
-    zip_file_path = "../mlmodel.zip"
-    model_file_name = "xgadmissionmodel3.joblib"
+    test_data_path = "patient.csv" 
+    zip_file_path = "mlmodel.zip" 
+    model_file_name = "KNN_classifier_LOS.pkl"
     result = preprocess_and_predict(test_data_path, zip_file_path, model_file_name)
     print(result)

@@ -12,7 +12,7 @@ with open('patients_data.json', 'r') as f:
 
 def run_script(script_name):
     # Construct the path to the script
-    pt = os.path.join("prediction", script_name)
+    pt = os.path.join(".", script_name)
     # Run the script using subprocess
     result = subprocess.run(['python', pt], capture_output=True, text=True)
     return json.loads(result.stdout)
