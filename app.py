@@ -64,4 +64,5 @@ def get_patient_data():
  
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))  # Default to 5000 for local testing
+    app.debug = True
     app.run(host="0.0.0.0", port=port)
