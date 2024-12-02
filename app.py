@@ -11,12 +11,18 @@ with open('patients_data.json', 'r') as f:
     data_dict = json.load(f)
 
 def run_script(script_name):
-    # pt = "C:\\ICU-Patients-Projection\\prediction\\" + script_name
-    pt = "prediction\\" + script_name
-   
-    # script_path = os.path.join(SCRIPTS_DIR, script_name)
+    # Construct the path to the script
+    pt = os.path.join("prediction", script_name)
+    # Run the script using subprocess
     result = subprocess.run(['python', pt], capture_output=True, text=True)
-    return json.loads(result.stdout)  
+    return json.loads(result.stdout)
+    
+    # # pt = "C:\\ICU-Patients-Projection\\prediction\\" + script_name
+    # pt = "prediction\\" + script_name
+   
+    # # script_path = os.path.join(SCRIPTS_DIR, script_name)
+    # result = subprocess.run(['python', pt], capture_output=True, text=True)
+    # return json.loads(result.stdout)  
 
 @app.route('/get_patient_data', methods=['GET'])
 def get_patient_data():
