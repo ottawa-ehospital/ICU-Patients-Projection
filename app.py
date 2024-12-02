@@ -7,22 +7,69 @@ from flask_cors import CORS
 app = Flask(__name__) 
 CORS(app)
 
-with open('patients_data.json', 'r') as f:
-    data_dict = json.load(f)
+try:
+    with open('patients_data.json', 'r') as f:
+        data_dict = json.load(f)
+except FileNotFoundError:
+    logger.error("patients_data.json not found")
+    data_dict = {}
+except json.JSONDecodeError:
+    logger.error("Invalid JSON in patients_data.json")
+    data_dict = {}
+# with open('patients_data.json', 'r') as f:
+#     data_dict = json.load(f)
 
 def run_script(script_name):
-    # Construct the path to the script
-    pt = os.path.join("prediction", script_name)
-    # Run the script using subprocess
-    result = subprocess.run(['python', pt], capture_output=True, text=True)
-    return json.loads(result.stdout)
+    """
+    Run a Python script and return its JSON output with proper error handling
+    """
+    script_path = os.path.join("prediction", script_name)
     
-    # # pt = "C:\\ICU-Patients-Projection\\prediction\\" + script_name
-    # pt = "prediction\\" + script_name
+    # Verify script exists
+    if not os.path.exists(script_path):
+        logger.error(f"Script not found: {script_path}")
+        return {}
+
+    try:
+        result = subprocess.run(
+            ['python', script_path],
+            capture_output=True,
+            text=True,
+            timeout=30  # Add timeout to prevent hanging
+        )
+        
+        if result.returncode != 0:
+            logger.error(f"Script error: {result.stderr}")
+            return {}
+            
+        if not result.stdout.strip():
+            logger.error(f"No output from script: {script_name}")
+            return {}
+            
+        return json.loads(result.stdout)
+        
+    except subprocess.TimeoutExpired:
+        logger.error(f"Script timed out: {script_name}")
+        return {}
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error in {script_name}: {str(e)}")
+        return {}
+    except Exception as e:
+        logger.error(f"Unexpected error running {script_name}: {str(e)}")
+        return {}
+# def run_script(script_name):
+#     # Construct the path to the script
+#     pt = os.path.join("prediction", script_name)
+#     # Run the script using subprocess
+#     result = subprocess.run(['python', pt], capture_output=True, text=True)
+#     return json.loads(result.stdout)
+    
+#     # # pt = "C:\\ICU-Patients-Projection\\prediction\\" + script_name
+#     # pt = "prediction\\" + script_name
    
-    # # script_path = os.path.join(SCRIPTS_DIR, script_name)
-    # result = subprocess.run(['python', pt], capture_output=True, text=True)
-    # return json.loads(result.stdout)  
+#     # # script_path = os.path.join(SCRIPTS_DIR, script_name)
+#     # result = subprocess.run(['python', pt], capture_output=True, text=True)
+#     # return json.loads(result.stdout)  
 
 @app.route('/get_patient_data', methods=['GET'])
 def get_patient_data():
