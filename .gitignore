@@ -24,3 +24,6 @@ yarn-error.log*
 
 *.joblib
 *.pkl
+
+# !patient.csv
+# !mlmodel.zip

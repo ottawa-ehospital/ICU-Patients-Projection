@@ -36,6 +36,11 @@ def preprocess_and_predict(test_data_path, zip_file_path, model_file_name):
     test_data['LOS_in_Hospital'] = (test_data['DISCHTIME'] - test_data['ADMITTIME']).dt.days
     test_data = test_data.drop(columns=['ADMITTIME', 'DISCHTIME', 'INTIME', 'OUTTIME', 'DOB'], axis='columns')
     
+    # Handle missing LOS 
+    # test_data['LOS'].fillna(0, inplace=True)
+    test_data['LOS'] = test_data['LOS'].fillna(0)
+
+
     # Transform ICD9_CODE
     def transform_function(value):
         value = str(value)
@@ -142,8 +147,10 @@ def preprocess_and_predict(test_data_path, zip_file_path, model_file_name):
     # Prepare the dictionary output
     output_dict = {}
     for idx, patient_id in enumerate(patient_ids):
+        # NaN in original LOS is replaced with 0
+        original_LOS_value = original_LOS.iloc[idx] if pd.notna(original_LOS.iloc[idx]) else '0'
         output_dict[patient_id] = {
-            'Original_LOS': original_LOS.iloc[idx],
+            'Original_LOS': original_LOS_value,
             'Predicted': predicted_labels[idx]
         }
 
@@ -152,8 +159,6 @@ def preprocess_and_predict(test_data_path, zip_file_path, model_file_name):
     return json.dumps(output_dict, indent=4)
 
 if __name__ == "__main__":
-    # test_data_path = "C:\\ICU-Patients-Projection\\patient.csv" 
-    # zip_file_path = "C:\\ICU-Patients-Projection\\mlmodel.zip"  
     test_data_path = "patient.csv" 
     zip_file_path = "mlmodel.zip" 
     model_file_name = "KNN_classifier_LOS.pkl"
